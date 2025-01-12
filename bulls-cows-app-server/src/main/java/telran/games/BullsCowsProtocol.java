@@ -4,7 +4,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import telran.games.repository.BullsCowsRepository;
@@ -73,7 +72,7 @@ public class BullsCowsProtocol implements Protocol {
 
     private Response createGame(String data) throws Exception {
         Long id = repository.createGame();
-        return getOkResponse("Game #" + id+ " created.");
+        return getOkResponse("Game #" + id + " created.");
     }
 
     private Response startGame(String data) throws Exception {
@@ -83,7 +82,7 @@ public class BullsCowsProtocol implements Protocol {
             String username = requestObj.getString("username");
             repository.startGame(id, username);
             return getOkResponse("Game started successfully");
-        } catch (JSONException e) {
+        } catch (Exception e) {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
         }
 
@@ -101,17 +100,26 @@ public class BullsCowsProtocol implements Protocol {
         }
     }
 
-    private Response getUnstartedGamesWithoutUser(String data) throws Exception {
-        JSONObject requestObj = new JSONObject(data);
-        String username = requestObj.getString("username");
-        return getOkResponse(
-                new JSONObject().put("games", repository.getUnstartedGamesWithoutUser(username)).toString());
+    private Response getUnstartedGames(String data) throws Exception {
+        try {
+            JSONObject requestObj = new JSONObject(data);
+            String username = requestObj.getString("username");
+            return getOkResponse(
+                    new JSONObject().put("games", repository.getUnstartedGames(username)).toString());
+
+        } catch (Exception e) {
+            return new Response(ResponseCode.WRONG_DATA, e.getMessage());
+        }
     }
 
     private Response getGamesToJoin(String data) throws Exception {
-        JSONObject requestObj = new JSONObject(data);
-        String username = requestObj.getString("username");
-        return getOkResponse(new JSONObject().put("games", repository.getGamesToJoin(username)).toString());
+        try {
+            JSONObject requestObj = new JSONObject(data);
+            String username = requestObj.getString("username");
+            return getOkResponse(new JSONObject().put("games", repository.getGamesToJoin(username)).toString());
+        } catch (Exception e) {
+            return new Response(ResponseCode.WRONG_DATA, e.getMessage());
+        }
     }
 
     private Response performMove(String data) throws Exception {

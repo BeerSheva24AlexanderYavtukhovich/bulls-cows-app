@@ -6,11 +6,13 @@ import java.util.List;
 import java.util.Random;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.NoResultException;
 import jakarta.persistence.TypedQuery;
 import telran.games.entities.Game;
 import telran.games.entities.GameGamer;
 import telran.games.entities.Gamer;
 import telran.games.entities.Move;
+import telran.games.exceptions.GameAlreadyJoinedException;
 import telran.games.exceptions.GameAlreadyStartedException;
 import telran.games.exceptions.GameFinishedException;
 import telran.games.exceptions.GameNotFoundException;
@@ -18,6 +20,7 @@ import telran.games.exceptions.GameNotStartedException;
 import telran.games.exceptions.GamerAlreadyInGameException;
 import telran.games.exceptions.GamerNotFoundException;
 import telran.games.exceptions.OnlyGamerInGameCanStartGameException;
+import telran.games.exceptions.UserAlreadyExist;
 import telran.games.exceptions.UserNotInGameException;
 
 public class BullsCowsRepositoryImpl implements BullsCowsRepository {
@@ -53,7 +56,6 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
         try {
             transaction.begin();
             Game game = em.find(Game.class, gameId);
-            Long existingAssociation = getExistingAssociation(gameId, username);
 
             if (game == null) {
                 throw new GameNotFoundException(gameId);
@@ -62,6 +64,8 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
             if (game.getDateTime() != null) {
                 throw new GameAlreadyStartedException(gameId);
             }
+
+            Long existingAssociation = getExistingAssociation(gameId, username);
             if (existingAssociation == 0) {
                 throw new OnlyGamerInGameCanStartGameException();
             }
@@ -86,7 +90,7 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
                 throw new GameNotFoundException(gameId);
             }
             if (game.getDateTime() != null) {
-                throw new GameAlreadyStartedException(gameId);
+                throw new GameAlreadyJoinedException(gameId, username);
             }
 
             if (username == null) {
@@ -113,31 +117,27 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
 
     }
 
-    private Long getExistingAssociation(Long gameId, String gamer) throws Exception {
+    private Long getExistingAssociation(Long gameId, String username) throws Exception {
         try {
-            String jpqlCheck = "SELECT COUNT(gg) FROM GameGamer gg WHERE gg.game = :game AND gg.gamer = :gamer";
-            Long existingAssociation = em.createQuery(jpqlCheck, Long.class)
-                    .setParameter("game", gameId)
-                    .setParameter("gamer", gamer)
+            String query = "SELECT COUNT(gg) FROM GameGamer gg WHERE gg.game.id = :gameId AND gg.gamer.username = :username";
+            return em.createQuery(query, Long.class)
+                    .setParameter("gameId", gameId)
+                    .setParameter("username", username)
                     .getSingleResult();
-            return existingAssociation;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public List<Long> getGamesToJoin(String username) throws Exception {
-        String jpqlString = "SELECT g FROM Game g JOIN g.gamers gamer WHERE gamer.username = :username AND g.dateTime IS NOT NULL AND g.isFinished = false";
-        TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
-        return query.getResultList();
     }
 
     private Gamer getGamerByUsername(String username) {
         String jpqlString = "SELECT g FROM Gamer g WHERE g.username = :username";
         TypedQuery<Gamer> query = em.createQuery(jpqlString, Gamer.class);
         query.setParameter("username", username);
-        return query.getResultList().stream().findFirst().orElse(null);
+        try {
+            return query.getSingleResult();
+        } catch (NoResultException e) {
+            return null;
+        }
     }
 
     @Override
@@ -153,8 +153,12 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
                 throw new GameFinishedException(gameId);
             }
             Gamer gamer = getGamerByUsername(username);
-            if (gamer == null
-                    || game.getGameGamers().stream().noneMatch(g -> g.getGamer().getUsername().equals(username))) {
+            if (gamer == null) {
+                throw new GamerNotFoundException(username);
+            }
+            Long existingAssociation = getExistingAssociation(gameId, username);
+
+            if (existingAssociation == 0) {
                 throw new UserNotInGameException(username, gameId);
             }
             Move gameMove = new Move();
@@ -190,6 +194,9 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
     @Override
     public void addUser(String username, LocalDate birthDate) throws Exception {
         try {
+            if (isUserExists(username)) {
+                throw new UserAlreadyExist(username);
+            }
             Gamer newGamer = new Gamer();
             newGamer.setUsername(username);
             newGamer.setBirthDate(birthDate);
@@ -203,11 +210,26 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
     }
 
     @Override
-    public List<Long> getUnstartedGamesWithoutUser(String username) {
-        String jpqlString = "SELECT g.id FROM Game g JOIN g.gameGamers gg JOIN gg.gamer gamer WHERE gamer.username = :username AND g.dateTime IS NULL AND g.isFinished = false";
-        TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
-        query.setParameter("username", username);
-        return query.getResultList();
+    public List<Long> getUnstartedGames(String username) throws Exception {
+        try {
+            String jpqlString = "SELECT g.id FROM Game g WHERE g.dateTime IS NULL AND g.isFinished = false";
+            TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
+            return query.getResultList();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public List<Long> getGamesToJoin(String username) throws Exception {
+        try {
+            String jpqlString = "SELECT g.id FROM Game g LEFT JOIN g.gameGamers gg ON gg.gamer.username = :username WHERE g.dateTime IS NOT NULL AND g.isFinished = false AND gg IS NULL";
+            TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
+            query.setParameter("username", username);
+            return query.getResultList();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

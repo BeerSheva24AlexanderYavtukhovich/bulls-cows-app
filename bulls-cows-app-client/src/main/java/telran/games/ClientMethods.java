@@ -1,8 +1,6 @@
 package telran.games;
 
 import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -78,60 +76,44 @@ public class ClientMethods {
         printResponse(io, jsonResponse);
     }
 
-    private void getGames(InputOutput io, String command, String noGamesMessage, String gamesTitle) {
-        JSONObject requestJson = new JSONObject();
-        requestJson.put("username", username);
-        String jsonResponse = netClient.sendAndReceive(command, requestJson.toString());
+ private void performMove(InputOutput){
+    String sequence = io.readInt("Enter 4 numbers. ", "Wrong ID format (Example: 1234)")
+                .toString();
+    JSONObject requestJson = new JSONObject();
+    requestJson.put("username", username);
+ }
 
-        try {
-            JSONObject jsonObject = new JSONObject(jsonResponse);
-            JSONArray gamesArray = jsonObject.getJSONArray("games");
-            if (gamesArray.isEmpty()) {
-                io.writeLine(noGamesMessage);
-            } else {
-                io.writeLine(ClientConfig.LINE);
-                io.writeLine(gamesTitle);
-                gamesArray.toList().stream()
-                        .map(Object::toString)
-                        .map(Long::valueOf)
-                        .forEach(gameId -> io.writeLine("- Game ID: " + gameId));
-                io.writeLine(ClientConfig.LINE);
-            }
-        } catch (Exception e) {
-            io.writeLine("Error processing response: " + e.getMessage());
-        }
-    }
-
-    private void getUnstartedGamesWithoutUser(InputOutput io) {
-        getGames(io, "getUnstartedGamesWithoutUser", "No unstarted games found.", "Unstarted games:");
+    private void getUnstartedGames(InputOutput io) {
+        sendReceiveProcessListOfGames(io, "getUnstartedGames");
     }
 
     private void getGamesToJoin(InputOutput io) {
-        getGames(io, "getGamesToJoin", "No unstarted games found.", "Unstarted games:");
+        sendReceiveProcessListOfGames(io, "getGamesToJoin");
     }
 
-    private boolean isValidUniqueDigits(String sequence) {
-        boolean res;
-        if (sequence == null || sequence.length() == 0) {
-            res = false;
-        }
+    private void sendReceiveProcessListOfGames(InputOutput io, String methodName) {
+        JSONObject requestJson = new JSONObject();
+        requestJson.put("username", username);
+        String jsonResponse = netClient.sendAndReceive(methodName, requestJson.toString());
+        JSONObject jsonObject = new JSONObject(jsonResponse);
+        JSONArray gamesArray = jsonObject.getJSONArray("games");
 
-        if (!sequence.matches("\\d+")) {
-            res = false;
+        if (gamesArray.isEmpty()) {
+            printResponse(io, Params.NO_GAMES_FOUND);
+        } else {
+            io.writeLine(Params.LINE);
+            gamesArray.toList().stream()
+                    .map(Object::toString)
+                    .map(Long::valueOf)
+                    .forEach(gameId -> io.writeLine("- Game ID: " + gameId));
+            io.writeLine(Params.LINE);
         }
-
-        Set<Character> uniqueDigits = new HashSet<>();
-        for (char digit : sequence.toCharArray()) {
-            uniqueDigits.add(digit);
-        }
-        res = uniqueDigits.size() == sequence.length();
-        return res;
     }
 
     private void printResponse(InputOutput io, String jsonResponse) {
-        io.writeLine(ClientConfig.LINE);
+        io.writeLine(Params.LINE);
         io.writeLine(jsonResponse);
-        io.writeLine(ClientConfig.LINE);
+        io.writeLine(Params.LINE);
     }
 
     private void getMainMenu(InputOutput io) {
@@ -139,9 +121,10 @@ public class ClientMethods {
                 Item.of("Create New Game", this::createGame),
                 Item.of("Join Game", this::joinGame),
                 Item.of("Start Game", this::startGame),
-                Item.of("View Unstarted Games Available to Join",
+                Item.of("Make Move", this::performMove),
+                Item.of("View Games Available to Join",
                         this::getGamesToJoin),
-                Item.of("View Unstarted Games", this::getUnstartedGamesWithoutUser),
+                Item.of("View Unstarted Games", this::getUnstartedGames),
 
         };
         mainMenuItems = Main.addExitItem(mainMenuItems, netClient);

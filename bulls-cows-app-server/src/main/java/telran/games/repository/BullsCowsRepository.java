@@ -16,7 +16,7 @@ public interface BullsCowsRepository {
 
     void performMove(Long gameId, String username, String move);
 
-    List<Long> getUnstartedGamesWithoutUser(String username)  throws Exception;
+    List<Long> getUnstartedGames(String username)  throws Exception;
 
     List<Long> getGamesToJoin(String username)  throws Exception;
 

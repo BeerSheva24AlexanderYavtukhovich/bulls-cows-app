@@ -13,7 +13,7 @@ import telran.view.StandardInputOutput;
 
 public class Main {
     static InputOutput io = new StandardInputOutput();
-    static NetworkClient netClient = new TcpClient(ClientConfig.HOST, ClientConfig.PORT);
+    static NetworkClient netClient = new TcpClient(Params.HOST, Params.PORT);
     public static void main(String[] args) {
         ClientMethods clientMethods = new ClientMethods(netClient);
         Item[] items = clientMethods.getItems();

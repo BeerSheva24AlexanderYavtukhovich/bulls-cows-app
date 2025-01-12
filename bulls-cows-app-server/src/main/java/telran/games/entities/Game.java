@@ -1,16 +1,12 @@
 package telran.games.entities;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
@@ -32,8 +28,6 @@ public class Game {
 
     private String sequence;
 
-    @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true)
-    private final List<GameGamer> gameGamers = new ArrayList<>();
 
     public LocalDateTime getDateTime() {
         return dateTime;
@@ -51,18 +45,11 @@ public class Game {
         this.sequence = sequence;
     }
 
-    public List<GameGamer> getGameGamers() {
-        return gameGamers;
-    }
+
 
     public boolean isFinished() {
         return isFinished;
     }
 
-    public void addGamer(Gamer gamer) {
-        GameGamer gameGamer = new GameGamer();
-        gameGamer.setGame(this);
-        gameGamer.setGamer(gamer);
-        gameGamers.add(gameGamer);
-    }
+
 }
