@@ -1,4 +1,4 @@
-package telran.games.exceptions;
+package telran.games.db.jpa.exceptions;
 
 public class GamerNotFoundException extends RuntimeException {
 

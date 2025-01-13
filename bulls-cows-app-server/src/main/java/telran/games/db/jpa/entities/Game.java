@@ -1,12 +1,17 @@
-package telran.games.entities;
+package telran.games.db.jpa.entities;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
@@ -28,7 +33,6 @@ public class Game {
 
     private String sequence;
 
-
     public LocalDateTime getDateTime() {
         return dateTime;
     }
@@ -45,11 +49,15 @@ public class Game {
         this.sequence = sequence;
     }
 
-
-
     public boolean isFinished() {
         return isFinished;
     }
 
+    public String getSequence() {
+        return sequence;
+    }
+
+    @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Set<GameGamer> gameGamers = new HashSet<>();
 
 }

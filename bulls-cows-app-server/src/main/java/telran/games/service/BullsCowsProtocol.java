@@ -1,4 +1,4 @@
-package telran.games;
+package telran.games.service;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -6,8 +6,7 @@ import java.time.LocalDate;
 
 import org.json.JSONObject;
 
-import telran.games.repository.BullsCowsRepository;
-import telran.games.service.BullsCowsService;
+import telran.games.service.BullsCowsServiceImpl.GameResult;
 import telran.net.Protocol;
 import telran.net.Request;
 import telran.net.Response;
@@ -16,11 +15,11 @@ import telran.net.ResponseCode;
 public class BullsCowsProtocol implements Protocol {
 
     private final BullsCowsService service;
-    private final BullsCowsRepository repository;
 
-    public BullsCowsProtocol(BullsCowsService service, BullsCowsRepository repository) {
+
+    public BullsCowsProtocol(BullsCowsService service ) {
         this.service = service;
-        this.repository = repository;
+
     }
 
     @Override
@@ -52,7 +51,7 @@ public class BullsCowsProtocol implements Protocol {
         try {
             JSONObject requestObj = new JSONObject(data);
             String username = requestObj.getString("username");
-            return getOkResponse(String.valueOf(repository.isUserExists(username)));
+            return getOkResponse(String.valueOf(service.isUserExists(username)));
         } catch (Exception e) {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
         }
@@ -63,7 +62,7 @@ public class BullsCowsProtocol implements Protocol {
             JSONObject requestObj = new JSONObject(data);
             String username = requestObj.getString("username");
             LocalDate birthDate = LocalDate.parse(requestObj.getString("birthDate"));
-            repository.addUser(username, birthDate);
+            service.addUser(username, birthDate);
             return getOkResponse(String.format("User %s added successfully", username));
         } catch (Exception e) {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
@@ -71,7 +70,7 @@ public class BullsCowsProtocol implements Protocol {
     }
 
     private Response createGame(String data) throws Exception {
-        Long id = repository.createGame();
+        Long id = service.createGame();
         return getOkResponse("Game #" + id + " created.");
     }
 
@@ -80,7 +79,7 @@ public class BullsCowsProtocol implements Protocol {
             JSONObject requestObj = new JSONObject(data);
             Long id = requestObj.getLong("gameId");
             String username = requestObj.getString("username");
-            repository.startGame(id, username);
+            service.startGame(id, username);
             return getOkResponse("Game started successfully");
         } catch (Exception e) {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
@@ -93,7 +92,7 @@ public class BullsCowsProtocol implements Protocol {
             JSONObject requestObj = new JSONObject(data);
             String username = requestObj.getString("username");
             Long gameId = requestObj.getLong("gameId");
-            repository.joinGame(username, gameId);
+            service.joinGame(username, gameId);
             return getOkResponse("Game joined successfully");
         } catch (Exception e) {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
@@ -105,7 +104,7 @@ public class BullsCowsProtocol implements Protocol {
             JSONObject requestObj = new JSONObject(data);
             String username = requestObj.getString("username");
             return getOkResponse(
-                    new JSONObject().put("games", repository.getUnstartedGames(username)).toString());
+                    new JSONObject().put("games", service.getUnstartedGames(username)).toString());
 
         } catch (Exception e) {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
@@ -116,20 +115,28 @@ public class BullsCowsProtocol implements Protocol {
         try {
             JSONObject requestObj = new JSONObject(data);
             String username = requestObj.getString("username");
-            return getOkResponse(new JSONObject().put("games", repository.getGamesToJoin(username)).toString());
+            return getOkResponse(new JSONObject().put("games", service.getGamesToJoin(username)).toString());
         } catch (Exception e) {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
         }
     }
-
+    private Response getGamesToPlay(String data) throws Exception {
+        try {
+            JSONObject requestObj = new JSONObject(data);
+            String username = requestObj.getString("username");
+            return getOkResponse(new JSONObject().put("games", service.getGamesToPlay(username)).toString());
+        } catch (Exception e) {
+            return new Response(ResponseCode.WRONG_DATA, e.getMessage());
+        }
+    }
     private Response performMove(String data) throws Exception {
         try {
             JSONObject requestObj = new JSONObject(data);
             Long gameId = requestObj.getLong("gameId");
             String username = requestObj.getString("username");
-            String moveStr = requestObj.getString("move");
-            repository.performMove(gameId, username, moveStr);
-            return getOkResponse("Move performed successfully");
+            String moveStr = requestObj.getString("sequence");
+            GameResult gameResult = service.performMove(gameId, username, moveStr);
+            return getOkResponse(gameResult.toString());
         } catch (Exception e) {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
         }

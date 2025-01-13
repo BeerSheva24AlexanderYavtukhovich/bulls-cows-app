@@ -1,4 +1,4 @@
-package telran.games.exceptions;
+package telran.games.db.jpa.exceptions;
 
 public class UserNotInGameException extends RuntimeException {
     public UserNotInGameException(String username, Long gameId) {

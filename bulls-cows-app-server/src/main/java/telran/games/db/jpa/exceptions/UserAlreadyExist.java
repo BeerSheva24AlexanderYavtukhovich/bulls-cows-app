@@ -1,5 +1,5 @@
 
-package telran.games.exceptions;
+package telran.games.db.jpa.exceptions;
 
 public class UserAlreadyExist extends Exception {
 

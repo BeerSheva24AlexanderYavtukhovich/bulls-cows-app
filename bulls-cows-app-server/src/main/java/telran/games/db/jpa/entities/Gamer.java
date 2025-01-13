@@ -1,4 +1,4 @@
-package telran.games.entities;
+package telran.games.db.jpa.entities;
 import java.time.LocalDate;
 
 import jakarta.persistence.Entity;

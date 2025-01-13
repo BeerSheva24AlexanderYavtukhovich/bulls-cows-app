@@ -1,6 +1,11 @@
 package telran.games;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -14,6 +19,7 @@ public class ClientMethods {
 
     private final NetworkClient netClient;
     private String username;
+    private int globalGameId;
 
     public ClientMethods(NetworkClient netClient) {
         this.netClient = netClient;
@@ -26,6 +32,21 @@ public class ClientMethods {
                 Item.of("Sign Up", this::signUp)
         };
     }
+
+    private void getMainMenu(InputOutput io) {
+        Item[] mainMenuItems = {
+                Item.of("Create Game", this::createGame),
+                Item.of("Join Game", this::selectUnjoinedGames),
+                Item.of("Start Game", this::selectUnstartedGame),
+                Item.of("Play Game", this::selectGameToPlay),
+
+        };
+        mainMenuItems = addExitItem(mainMenuItems, netClient);
+        Menu mainMenu = new Menu("Hello, " + username + "! Lets play Bulls & Cows", mainMenuItems);
+        mainMenu.perform(io);
+    }
+
+  
 
     private void signIn(InputOutput io) {
         username = io.readString("Enter your login");
@@ -56,58 +77,101 @@ public class ClientMethods {
         printResponse(io, jsonResponse);
     }
 
-    private void joinGame(InputOutput io) {
-        String id = io.readInt("Enter ID of the existing game. ", "Wrong ID format (Example: 123)")
-                .toString();
+    private void selectGameToPlay(InputOutput io) {
         JSONObject requestJson = new JSONObject();
         requestJson.put("username", username);
-        requestJson.put("gameId", id);
-        String jsonResponse = netClient.sendAndReceive("joinGame", requestJson.toString());
-        printResponse(io, jsonResponse);
+        List<Long> gameIds = getGamesList(io, "getGamesToPlay");
+        if (gameIds != null) {
+            getPlayGamesMenu(gameIds, io);
+        }
     }
 
-    private void startGame(InputOutput io) {
-        String id = io.readInt("Enter ID of the existing game. ", "Wrong ID format (Example: 123)")
-                .toString();
+    private void selectUnstartedGame(InputOutput io) {
         JSONObject requestJson = new JSONObject();
         requestJson.put("username", username);
-        requestJson.put("gameId", id);
-        String jsonResponse = netClient.sendAndReceive("startGame", requestJson.toString());
-        printResponse(io, jsonResponse);
+        List<Long> gameIds = getGamesList(io, "getUnstartedGames");
+        if (gameIds != null) {
+            getUnstartedGamesMenu(gameIds, io);
+        }
     }
 
- private void performMove(InputOutput){
-    String sequence = io.readInt("Enter 4 numbers. ", "Wrong ID format (Example: 1234)")
-                .toString();
-    JSONObject requestJson = new JSONObject();
-    requestJson.put("username", username);
- }
-
-    private void getUnstartedGames(InputOutput io) {
-        sendReceiveProcessListOfGames(io, "getUnstartedGames");
+    private void selectUnjoinedGames(InputOutput io) {
+        JSONObject requestJson = new JSONObject();
+        requestJson.put("username", username);
+        List<Long> gameIds = getGamesList(io, "getGamesToJoin");
+        if (gameIds != null) {
+            getGamestoJoinMenu(gameIds, io);
+        }
     }
 
-    private void getGamesToJoin(InputOutput io) {
-        sendReceiveProcessListOfGames(io, "getGamesToJoin");
-    }
-
-    private void sendReceiveProcessListOfGames(InputOutput io, String methodName) {
+    private List<Long> getGamesList(InputOutput io, String methodName) {
+        List<Long> gameIds = null;
         JSONObject requestJson = new JSONObject();
         requestJson.put("username", username);
         String jsonResponse = netClient.sendAndReceive(methodName, requestJson.toString());
         JSONObject jsonObject = new JSONObject(jsonResponse);
         JSONArray gamesArray = jsonObject.getJSONArray("games");
-
         if (gamesArray.isEmpty()) {
             printResponse(io, Params.NO_GAMES_FOUND);
         } else {
-            io.writeLine(Params.LINE);
-            gamesArray.toList().stream()
+            gameIds = gamesArray.toList().stream()
                     .map(Object::toString)
                     .map(Long::valueOf)
-                    .forEach(gameId -> io.writeLine("- Game ID: " + gameId));
-            io.writeLine(Params.LINE);
+                    .collect(Collectors.toList());
         }
+        return gameIds;
+    }
+
+    private void getGamestoJoinMenu(List<Long> gameIds, InputOutput io) {
+        Item[] gamesMenuItems = gameIds.stream()
+                .map(gameId -> Item.of("Game ID: " + gameId, i -> joinSelectedGame(gameId, i)))
+                .toArray(Item[]::new);
+        gamesMenuItems = addExitItem(gamesMenuItems, netClient);
+        Menu gamesMenu = new Menu("Select game to join", gamesMenuItems);
+        gamesMenu.perform(io);
+    }
+
+    private void getPlayGamesMenu(List<Long> gameIds, InputOutput io) {
+        Item[] gamesMenuItems = gameIds.stream()
+                .map(gameId -> Item.of("Game ID: " + gameId, i -> playSelectedGame(gameId, i)))
+                .toArray(Item[]::new);
+        gamesMenuItems = addExitItem(gamesMenuItems, netClient);
+        Menu gamesMenu = new Menu("Select game to play", gamesMenuItems);
+        gamesMenu.perform(io);
+    }
+
+    private void getUnstartedGamesMenu(List<Long> gameIds, InputOutput io) {
+        Item[] gamesMenuItems = gameIds.stream()
+                .map(gameId -> Item.of("Game ID: " + gameId, i -> startSelectedGame(gameId, i)))
+                .toArray(Item[]::new);
+        gamesMenuItems = addExitItem(gamesMenuItems, netClient);
+        Menu gamesMenu = new Menu("Select game to start", gamesMenuItems);
+        gamesMenu.perform(io);
+    }
+
+    private void startSelectedGame(Long gameId, InputOutput io) {
+        JSONObject requestJson = new JSONObject();
+        requestJson.put("username", username);
+        requestJson.put("gameId", gameId);
+        String jsonResponse = netClient.sendAndReceive("startGame", requestJson.toString());
+        printResponse(io, jsonResponse);
+    }
+    private void playSelectedGame(Long gameId, InputOutput io) {
+        String sequence = io.readInt("Enter 4 numbers to perform move. ", "Wrong ID format (Example: 1234)")
+                .toString();
+        JSONObject requestJson = new JSONObject();
+        requestJson.put("gameId", gameId);
+        requestJson.put("username", username);
+        requestJson.put("sequence", sequence);
+        String jsonResponse = netClient.sendAndReceive("performMove", requestJson.toString());
+        printGameResults(io, jsonResponse);
+    }
+    private void joinSelectedGame(Long gameId, InputOutput io) {
+        JSONObject requestJson = new JSONObject();
+        requestJson.put("username", username);
+        requestJson.put("gameId", gameId);
+        String jsonResponse = netClient.sendAndReceive("joinGame", requestJson.toString());
+        printResponse(io, jsonResponse);
     }
 
     private void printResponse(InputOutput io, String jsonResponse) {
@@ -116,20 +180,36 @@ public class ClientMethods {
         io.writeLine(Params.LINE);
     }
 
-    private void getMainMenu(InputOutput io) {
-        Item[] mainMenuItems = {
-                Item.of("Create New Game", this::createGame),
-                Item.of("Join Game", this::joinGame),
-                Item.of("Start Game", this::startGame),
-                Item.of("Make Move", this::performMove),
-                Item.of("View Games Available to Join",
-                        this::getGamesToJoin),
-                Item.of("View Unstarted Games", this::getUnstartedGames),
+    public static void printGameResults(InputOutput io, String jsonResponse) {
+        JSONObject jsonObject = new JSONObject(jsonResponse);
+        JSONArray movesArray = jsonObject.getJSONArray("moves");
+        io.writeLine("Moves:");
+        for (int i = 0; i < movesArray.length(); i++) {
+            JSONObject moveJson = movesArray.getJSONObject(i);
+            int bulls = moveJson.getInt("bulls");
+            int cows = moveJson.getInt("cows");
+            String sequence = moveJson.getString("sequence");
+            String gameGamer = moveJson.getString("gameGamer");
+            io.writeLine("Move " + (i + 1) + ": bulls=" + bulls + ", cows=" + cows + ", sequence='" + sequence
+                    + "', gameGamer='" + gameGamer + "'");
+        }
+        boolean isWin = jsonObject.getBoolean("isWin");
 
-        };
-        mainMenuItems = Main.addExitItem(mainMenuItems, netClient);
-        Menu mainMenu = new Menu("Hello, " + username + "! Lets play Bulls & Cows", mainMenuItems);
-        mainMenu.perform(io);
+        io.writeLine("Is Win: " + (isWin ? "Yes" : "No"));
+    }
+
+    public static Item[] addExitItem(Item[] items, NetworkClient netClient) {
+        Item[] res = Arrays.copyOf(items, items.length + 1);
+        res[items.length] = Item.of("Exit", io -> {
+            try {
+                if (netClient instanceof Closeable closeable) {
+                    closeable.close();
+                }
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        }, true);
+        return res;
     }
 
 }

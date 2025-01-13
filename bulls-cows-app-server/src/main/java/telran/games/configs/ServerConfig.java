@@ -1,7 +1,7 @@
-package telran.games;
+package telran.games.configs;
 
 public final class ServerConfig {
-    final static int PORT = 5011;
+    public final static int PORT = 5011;
 
     private ServerConfig() {
     }

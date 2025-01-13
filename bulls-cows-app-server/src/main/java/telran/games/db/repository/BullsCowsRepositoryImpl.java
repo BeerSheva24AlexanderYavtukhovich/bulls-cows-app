@@ -1,4 +1,4 @@
-package telran.games.repository;
+package telran.games.db.repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -8,27 +8,28 @@ import java.util.Random;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.TypedQuery;
-import telran.games.entities.Game;
-import telran.games.entities.GameGamer;
-import telran.games.entities.Gamer;
-import telran.games.entities.Move;
-import telran.games.exceptions.GameAlreadyJoinedException;
-import telran.games.exceptions.GameAlreadyStartedException;
-import telran.games.exceptions.GameFinishedException;
-import telran.games.exceptions.GameNotFoundException;
-import telran.games.exceptions.GameNotStartedException;
-import telran.games.exceptions.GamerAlreadyInGameException;
-import telran.games.exceptions.GamerNotFoundException;
-import telran.games.exceptions.OnlyGamerInGameCanStartGameException;
-import telran.games.exceptions.UserAlreadyExist;
-import telran.games.exceptions.UserNotInGameException;
+import telran.games.db.jpa.entities.Game;
+import telran.games.db.jpa.entities.GameGamer;
+import telran.games.db.jpa.entities.Gamer;
+import telran.games.db.jpa.entities.Move;
+import telran.games.db.jpa.exceptions.GameAlreadyStartedException;
+import telran.games.db.jpa.exceptions.GameFinishedException;
+import telran.games.db.jpa.exceptions.GameNotFoundException;
+import telran.games.db.jpa.exceptions.GameNotStartedException;
+import telran.games.db.jpa.exceptions.GamerAlreadyInGameException;
+import telran.games.db.jpa.exceptions.GamerNotFoundException;
+import telran.games.db.jpa.exceptions.OnlyGamerInGameCanStartGameException;
+import telran.games.db.jpa.exceptions.UserAlreadyExist;
+import telran.games.db.jpa.exceptions.UserNotInGameException;
+import telran.games.service.BullsCowsServiceImpl.GameResult;
 
 public class BullsCowsRepositoryImpl implements BullsCowsRepository {
 
     private final EntityManager em;
 
-    public BullsCowsRepositoryImpl(EntityManager entityManager) {
-        this.em = entityManager;
+    public BullsCowsRepositoryImpl(EntityManager em) {
+        this.em = em;
+
     }
 
     @Override
@@ -89,9 +90,6 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
             if (game == null) {
                 throw new GameNotFoundException(gameId);
             }
-            if (game.getDateTime() != null) {
-                throw new GameAlreadyJoinedException(gameId, username);
-            }
 
             if (username == null) {
                 throw new GamerNotFoundException(username);
@@ -140,8 +138,20 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
         }
     }
 
+    private GameGamer getGameGamerByUsernameAndGameID(String username, Long gameId) {
+        String jpqlString = "SELECT g FROM GameGamer g WHERE g.gamer.username = :username AND g.game.id = :gameId";
+        TypedQuery<GameGamer> query = em.createQuery(jpqlString, GameGamer.class);
+        query.setParameter("username", username);
+        query.setParameter("gameId", gameId);
+        try {
+            return query.getSingleResult();
+        } catch (NoResultException e) {
+            return null;
+        }
+    }
+
     @Override
-    public void performMove(Long gameId, String username, String moveStr) {
+    public GameResult performMove(Long gameId, String username, String sequence) throws Exception {
         var transaction = em.getTransaction();
         try {
             transaction.begin();
@@ -161,17 +171,36 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
             if (existingAssociation == 0) {
                 throw new UserNotInGameException(username, gameId);
             }
-            Move gameMove = new Move();
-            gameMove.setGame(game);
-            gameMove.setGamer(gamer);
-            gameMove.setMove(moveStr);
-            gameMove.setDateTime(LocalDateTime.now());
+            String secretSequence = game.getSequence();
 
-            em.persist(gameMove);
-            if (game.isFinished()) {
+            // int[] bullsCowsAr = service.calculateBullsCows(secretSequence, sequence);
+            // //FIXME
+            int[] bullsCowsAr = { 0, 0 };
+            boolean isWin = bullsCowsAr[0] == secretSequence.length();
+            if (isWin) {
+                game.setFinished(true);
                 em.merge(game);
             }
+
+            GameGamer gameGamer = getGameGamerByUsernameAndGameID(username, gameId);
+            gameGamer.setWinner(isWin);
+
+            Move gameMove = new Move();
+            gameMove.setBulls(bullsCowsAr[0]);
+            gameMove.setCows(bullsCowsAr[1]);
+            gameMove.setSequence(sequence);
+            gameMove.setGameGamer(gameGamer);
+            em.persist(gameMove);
+
             transaction.commit();
+            List<Move> allMoves = em.createQuery(
+                    "SELECT m FROM Move m WHERE m.gameGamer.game.id = :gameId AND m.gameGamer.gamer.username = :username",
+                    Move.class)
+                    .setParameter("gameId", gameId)
+                    .setParameter("username", username)
+                    .getResultList();
+
+            return new GameResult(allMoves, isWin);
         } catch (Exception e) {
             transaction.rollback();
             throw new RuntimeException(e);
@@ -212,7 +241,7 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
     @Override
     public List<Long> getUnstartedGames(String username) throws Exception {
         try {
-            String jpqlString = "SELECT g.id FROM Game g WHERE g.dateTime IS NULL AND g.isFinished = false";
+            String jpqlString = "SELECT DISTINCT g.id FROM Game g WHERE g.dateTime IS NULL AND g.isFinished = false";
             TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
             return query.getResultList();
         } catch (Exception e) {
@@ -220,10 +249,26 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
         }
     }
 
+
     @Override
     public List<Long> getGamesToJoin(String username) throws Exception {
         try {
-            String jpqlString = "SELECT g.id FROM Game g LEFT JOIN g.gameGamers gg ON gg.gamer.username = :username WHERE g.dateTime IS NOT NULL AND g.isFinished = false AND gg IS NULL";
+            String jpqlString = "SELECT g.id FROM Game g " +
+                                "LEFT JOIN g.gameGamers gg " +
+                                "WITH gg.gamer.username = :username " +
+                                "WHERE g.isFinished = false " +
+                                "AND gg IS NULL";
+            TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
+            query.setParameter("username", username);
+            return query.getResultList();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+    @Override
+    public List<Long> getGamesToPlay(String username) throws Exception {
+        try {
+            String jpqlString = "SELECT g.id FROM Game g " + "JOIN g.gameGamers gg " + "WHERE g.dateTime IS NOT NULL " + "AND gg.gamer.username = :username";
             TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
             query.setParameter("username", username);
             return query.getResultList();
@@ -232,10 +277,5 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
         }
     }
 
-    @Override
-    public String getWinnerOfGame(Long gameId) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getWinnerOfGame'");
-    }
 
 }
