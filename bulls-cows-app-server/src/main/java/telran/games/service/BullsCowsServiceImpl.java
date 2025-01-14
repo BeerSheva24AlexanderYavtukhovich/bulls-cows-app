@@ -2,6 +2,7 @@ package telran.games.service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.IntStream;
 
 import telran.games.db.jpa.entities.Move;
@@ -11,7 +12,7 @@ public class BullsCowsServiceImpl implements BullsCowsService {
 
     private BullsCowsRepository repository;
 
-    public BullsCowsServiceImpl( BullsCowsRepository repository) {
+    public BullsCowsServiceImpl(BullsCowsRepository repository) {
         this.repository = repository;
     }
 
@@ -32,8 +33,7 @@ public class BullsCowsServiceImpl implements BullsCowsService {
         }
     }
 
-    @Override
-    public int[] calculateBullsCows(String secretSequence, String sequence) {
+    public static int[] calculateBullsCows(String secretSequence, String sequence) {
         int length = sequence.length();
 
         boolean[] secretUsed = new boolean[length];
@@ -58,6 +58,11 @@ public class BullsCowsServiceImpl implements BullsCowsService {
                 .count();
 
         return new int[] { bulls, cows };
+    }
+
+    public static String getRandomSequenceString() {
+        return new Random().ints(1, 10).distinct().limit(4).mapToObj(String::valueOf).reduce("",
+                (s, n) -> s + n);
     }
 
     @Override
@@ -99,6 +104,7 @@ public class BullsCowsServiceImpl implements BullsCowsService {
     public List<Long> getGamesToJoin(String username) throws Exception {
         return repository.getGamesToJoin(username);
     }
+
     @Override
     public List<Long> getGamesToPlay(String username) throws Exception {
         return repository.getGamesToPlay(username);

@@ -22,6 +22,6 @@ public interface BullsCowsRepository {
 
     List<Long> getGamesToJoin(String username) throws Exception;
 
-     List<Long> getGamesToPlay(String username) throws Exception;
-  
+    List<Long> getGamesToPlay(String username) throws Exception;
+
 }

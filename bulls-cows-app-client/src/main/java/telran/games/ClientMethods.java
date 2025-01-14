@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.json.JSONArray;
@@ -19,7 +20,6 @@ public class ClientMethods {
 
     private final NetworkClient netClient;
     private String username;
-    private int globalGameId;
 
     public ClientMethods(NetworkClient netClient) {
         this.netClient = netClient;
@@ -45,8 +45,6 @@ public class ClientMethods {
         Menu mainMenu = new Menu("Hello, " + username + "! Lets play Bulls & Cows", mainMenuItems);
         mainMenu.perform(io);
     }
-
-  
 
     private void signIn(InputOutput io) {
         username = io.readString("Enter your login");
@@ -77,31 +75,26 @@ public class ClientMethods {
         printResponse(io, jsonResponse);
     }
 
-    private void selectGameToPlay(InputOutput io) {
+    private void selectGamesMenu(InputOutput io, String requestType,
+            BiConsumer<List<Long>, InputOutput> menuAction) {
         JSONObject requestJson = new JSONObject();
         requestJson.put("username", username);
-        List<Long> gameIds = getGamesList(io, "getGamesToPlay");
+        List<Long> gameIds = getGamesList(io, requestType);
         if (gameIds != null) {
-            getPlayGamesMenu(gameIds, io);
+            menuAction.accept(gameIds, io);
         }
+    }
+
+    private void selectGameToPlay(InputOutput io) {
+        selectGamesMenu(io, "getGamesToPlay", this::getPlayGamesMenu);
     }
 
     private void selectUnstartedGame(InputOutput io) {
-        JSONObject requestJson = new JSONObject();
-        requestJson.put("username", username);
-        List<Long> gameIds = getGamesList(io, "getUnstartedGames");
-        if (gameIds != null) {
-            getUnstartedGamesMenu(gameIds, io);
-        }
+        selectGamesMenu(io, "getUnstartedGames", this::getUnstartedGamesMenu);
     }
 
     private void selectUnjoinedGames(InputOutput io) {
-        JSONObject requestJson = new JSONObject();
-        requestJson.put("username", username);
-        List<Long> gameIds = getGamesList(io, "getGamesToJoin");
-        if (gameIds != null) {
-            getGamestoJoinMenu(gameIds, io);
-        }
+        selectGamesMenu(io, "getGamesToJoin", this::getGamestoJoinMenu);
     }
 
     private List<Long> getGamesList(InputOutput io, String methodName) {
@@ -122,31 +115,26 @@ public class ClientMethods {
         return gameIds;
     }
 
-    private void getGamestoJoinMenu(List<Long> gameIds, InputOutput io) {
+    private void getGamesMenu(String title, List<Long> gameIds, InputOutput io,
+            BiConsumer<Long, InputOutput> gameAction) {
         Item[] gamesMenuItems = gameIds.stream()
-                .map(gameId -> Item.of("Game ID: " + gameId, i -> joinSelectedGame(gameId, i)))
+                .map(gameId -> Item.of("Game ID: " + gameId, i -> gameAction.accept(gameId, i), true))
                 .toArray(Item[]::new);
         gamesMenuItems = addExitItem(gamesMenuItems, netClient);
-        Menu gamesMenu = new Menu("Select game to join", gamesMenuItems);
+        Menu gamesMenu = new Menu(title, gamesMenuItems);
         gamesMenu.perform(io);
+    }
+
+    private void getGamestoJoinMenu(List<Long> gameIds, InputOutput io) {
+        getGamesMenu("Select game to join", gameIds, io, this::joinSelectedGame);
     }
 
     private void getPlayGamesMenu(List<Long> gameIds, InputOutput io) {
-        Item[] gamesMenuItems = gameIds.stream()
-                .map(gameId -> Item.of("Game ID: " + gameId, i -> playSelectedGame(gameId, i)))
-                .toArray(Item[]::new);
-        gamesMenuItems = addExitItem(gamesMenuItems, netClient);
-        Menu gamesMenu = new Menu("Select game to play", gamesMenuItems);
-        gamesMenu.perform(io);
+        getGamesMenu("Select game to play", gameIds, io, this::playSelectedGame);
     }
 
     private void getUnstartedGamesMenu(List<Long> gameIds, InputOutput io) {
-        Item[] gamesMenuItems = gameIds.stream()
-                .map(gameId -> Item.of("Game ID: " + gameId, i -> startSelectedGame(gameId, i)))
-                .toArray(Item[]::new);
-        gamesMenuItems = addExitItem(gamesMenuItems, netClient);
-        Menu gamesMenu = new Menu("Select game to start", gamesMenuItems);
-        gamesMenu.perform(io);
+        getGamesMenu("Select game to start", gameIds, io, this::startSelectedGame);
     }
 
     private void startSelectedGame(Long gameId, InputOutput io) {
@@ -156,6 +144,7 @@ public class ClientMethods {
         String jsonResponse = netClient.sendAndReceive("startGame", requestJson.toString());
         printResponse(io, jsonResponse);
     }
+
     private void playSelectedGame(Long gameId, InputOutput io) {
         String sequence = io.readInt("Enter 4 numbers to perform move. ", "Wrong ID format (Example: 1234)")
                 .toString();
@@ -166,6 +155,7 @@ public class ClientMethods {
         String jsonResponse = netClient.sendAndReceive("performMove", requestJson.toString());
         printGameResults(io, jsonResponse);
     }
+
     private void joinSelectedGame(Long gameId, InputOutput io) {
         JSONObject requestJson = new JSONObject();
         requestJson.put("username", username);
@@ -195,7 +185,9 @@ public class ClientMethods {
         }
         boolean isWin = jsonObject.getBoolean("isWin");
 
-        io.writeLine("Is Win: " + (isWin ? "Yes" : "No"));
+        io.writeLine(isWin
+                ? "Congratulations! You are the winner!"
+                : "Better luck next time. Keep trying!");
     }
 
     public static Item[] addExitItem(Item[] items, NetworkClient netClient) {

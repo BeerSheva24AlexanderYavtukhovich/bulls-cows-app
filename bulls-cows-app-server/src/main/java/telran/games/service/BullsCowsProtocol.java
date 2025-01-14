@@ -16,8 +16,7 @@ public class BullsCowsProtocol implements Protocol {
 
     private final BullsCowsService service;
 
-
-    public BullsCowsProtocol(BullsCowsService service ) {
+    public BullsCowsProtocol(BullsCowsService service) {
         this.service = service;
 
     }
@@ -120,6 +119,7 @@ public class BullsCowsProtocol implements Protocol {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
         }
     }
+
     private Response getGamesToPlay(String data) throws Exception {
         try {
             JSONObject requestObj = new JSONObject(data);
@@ -129,6 +129,7 @@ public class BullsCowsProtocol implements Protocol {
             return new Response(ResponseCode.WRONG_DATA, e.getMessage());
         }
     }
+
     private Response performMove(String data) throws Exception {
         try {
             JSONObject requestObj = new JSONObject(data);
