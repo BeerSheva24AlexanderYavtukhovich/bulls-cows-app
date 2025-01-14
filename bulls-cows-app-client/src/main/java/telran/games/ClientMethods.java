@@ -173,22 +173,31 @@ public class ClientMethods {
     public static void printGameResults(InputOutput io, String jsonResponse) {
         JSONObject jsonObject = new JSONObject(jsonResponse);
         JSONArray movesArray = jsonObject.getJSONArray("moves");
-        io.writeLine("Moves:");
+    
+        io.writeString(Params.TABLE_BORDER);
+        io.writeString(Params.TABLE_HEADER);
+        io.writeString(Params.TABLE_BORDER);
+    
         for (int i = 0; i < movesArray.length(); i++) {
             JSONObject moveJson = movesArray.getJSONObject(i);
             int bulls = moveJson.getInt("bulls");
             int cows = moveJson.getInt("cows");
             String sequence = moveJson.getString("sequence");
             String gameGamer = moveJson.getString("gameGamer");
-            io.writeLine("Move " + (i + 1) + ": bulls=" + bulls + ", cows=" + cows + ", sequence='" + sequence
-                    + "', gameGamer='" + gameGamer + "'");
+    
+            io.writeString(String.format(Params.TABLE_ROW_FORMAT,
+                i + 1, bulls, cows, sequence, gameGamer));
         }
+    
+        io.writeString(Params.TABLE_BORDER);
         boolean isWin = jsonObject.getBoolean("isWin");
 
-        io.writeLine(isWin
-                ? "Congratulations! You are the winner!"
-                : "Better luck next time. Keep trying!");
+        io.writeString(isWin
+            ? "Congratulations! You are the winner!"
+            : "Better luck next time. Keep trying!");
+        io.writeLine(Params.TABLE_BORDER);
     }
+    
 
     public static Item[] addExitItem(Item[] items, NetworkClient netClient) {
         Item[] res = Arrays.copyOf(items, items.length + 1);
