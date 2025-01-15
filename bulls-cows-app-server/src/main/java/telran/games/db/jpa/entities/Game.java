@@ -58,6 +58,6 @@ public class Game {
     }
 
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private Set<GameGamer> gameGamers = new HashSet<>();
+    private final Set<GameGamer> gameGamers = new HashSet<>();
 
 }

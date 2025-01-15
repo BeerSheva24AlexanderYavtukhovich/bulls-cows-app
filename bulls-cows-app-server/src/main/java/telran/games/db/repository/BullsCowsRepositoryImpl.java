@@ -58,15 +58,18 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
             Game game = em.find(Game.class, gameId);
 
             if (game == null) {
+                transaction.rollback();
                 throw new GameNotFoundException(gameId);
             }
 
             if (game.getDateTime() != null) {
+                transaction.rollback();
                 throw new GameAlreadyStartedException(gameId);
             }
 
             Long existingAssociation = getExistingAssociation(gameId, username);
             if (existingAssociation == 0) {
+                transaction.rollback();
                 throw new OnlyGamerInGameCanStartGameException();
             }
 
@@ -87,16 +90,19 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
             Gamer gamer = em.find(Gamer.class, username);
 
             if (game == null) {
+                transaction.rollback();
                 throw new GameNotFoundException(gameId);
             }
 
             if (username == null) {
+                transaction.rollback();
                 throw new GamerNotFoundException(username);
             }
 
             Long existingAssociation = getExistingAssociation(gameId, username);
 
             if (existingAssociation > 0) {
+                transaction.rollback();
                 throw new GamerAlreadyInGameException(username, gameId);
             }
 
@@ -126,29 +132,6 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
         }
     }
 
-    private Gamer getGamerByUsername(String username) {
-        String jpqlString = "SELECT g FROM Gamer g WHERE g.username = :username";
-        TypedQuery<Gamer> query = em.createQuery(jpqlString, Gamer.class);
-        query.setParameter("username", username);
-        try {
-            return query.getSingleResult();
-        } catch (NoResultException e) {
-            return null;
-        }
-    }
-
-    private GameGamer getGameGamerByUsernameAndGameID(String username, Long gameId) {
-        String jpqlString = "SELECT g FROM GameGamer g WHERE g.gamer.username = :username AND g.game.id = :gameId";
-        TypedQuery<GameGamer> query = em.createQuery(jpqlString, GameGamer.class);
-        query.setParameter("username", username);
-        query.setParameter("gameId", gameId);
-        try {
-            return query.getSingleResult();
-        } catch (NoResultException e) {
-            return null;
-        }
-    }
-
     @Override
     public GameResult performMove(Long gameId, String username, String sequence) throws Exception {
         var transaction = em.getTransaction();
@@ -156,18 +139,22 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
             transaction.begin();
             Game game = em.find(Game.class, gameId);
             if (game == null || game.getDateTime() == null) {
+                transaction.rollback();
                 throw new GameNotStartedException(gameId);
             }
             if (game.isFinished()) {
+                transaction.rollback();
                 throw new GameFinishedException(gameId);
             }
             Gamer gamer = getGamerByUsername(username);
             if (gamer == null) {
+                transaction.rollback();
                 throw new GamerNotFoundException(username);
             }
             Long existingAssociation = getExistingAssociation(gameId, username);
 
             if (existingAssociation == 0) {
+                transaction.rollback();
                 throw new UserNotInGameException(username, gameId);
             }
 
@@ -176,7 +163,6 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
             boolean isWin = bullsCowsAr[0] == secretSequence.length();
             if (isWin) {
                 game.setFinished(true);
-                em.merge(game);
             }
 
             GameGamer gameGamer = getGameGamerByUsernameAndGameID(username, gameId);
@@ -219,18 +205,20 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
 
     @Override
     public void addUser(String username, LocalDate birthDate) throws Exception {
+        var transaction = em.getTransaction();
         try {
             if (isUserExists(username)) {
+                transaction.rollback();
                 throw new UserAlreadyExist(username);
             }
+            transaction.begin();
             Gamer newGamer = new Gamer();
             newGamer.setUsername(username);
             newGamer.setBirthDate(birthDate);
-            em.getTransaction().begin();
             em.persist(newGamer);
-            em.getTransaction().commit();
+            transaction.commit();
         } catch (Exception e) {
-            em.getTransaction().rollback();
+            transaction.rollback();
             throw new RuntimeException(e);
         }
     }
@@ -249,7 +237,9 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
     @Override
     public List<Long> getGamesToJoin(String username) throws Exception {
         try {
-            String jpqlString = "SELECT g.id FROM Game g LEFT JOIN g.gameGamers gg WITH gg.gamer.username = :username WHERE g.isFinished = false AND gg IS NULL";
+            String jpqlString = "SELECT g.id FROM Game g LEFT JOIN g.gameGamers gg WITH gg.gamer.username = :username "
+                    +
+                    "WHERE gg IS NULL OR (gg.game.dateTime IS NULL AND gg.gamer.username != :username)";
             TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
             query.setParameter("username", username);
             return query.getResultList();
@@ -261,8 +251,9 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
     @Override
     public List<Long> getGamesToPlay(String username) throws Exception {
         try {
-            String jpqlString = "SELECT g.id FROM Game g JOIN g.gameGamers gg WHERE g.dateTime IS NOT NULL AND gg.gamer.username = :username AND g.isFinished = false";
-            TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
+           // String jpqlString = "SELECT g.id FROM Game g JOIN g.gameGamers gg WHERE g.dateTime IS NOT NULL AND gg.gamer.username = :username AND g.isFinished = false";
+           String  jpqlString ="SELECT game.id FROM GameGamer WHERE gamer.username = :username AND game.dateTime IS NOT NULL AND game.isFinished = false";
+           TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
             query.setParameter("username", username);
             return query.getResultList();
         } catch (Exception e) {
@@ -270,4 +261,26 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
         }
     }
 
+    private Gamer getGamerByUsername(String username) {
+        String jpqlString = "SELECT g FROM Gamer g WHERE g.username = :username";
+        TypedQuery<Gamer> query = em.createQuery(jpqlString, Gamer.class);
+        query.setParameter("username", username);
+        try {
+            return query.getSingleResult();
+        } catch (NoResultException e) {
+            return null;
+        }
+    }
+
+    private GameGamer getGameGamerByUsernameAndGameID(String username, Long gameId) {
+        String jpqlString = "SELECT g FROM GameGamer g WHERE g.gamer.username = :username AND g.game.id = :gameId";
+        TypedQuery<GameGamer> query = em.createQuery(jpqlString, GameGamer.class);
+        query.setParameter("username", username);
+        query.setParameter("gameId", gameId);
+        try {
+            return query.getSingleResult();
+        } catch (NoResultException e) {
+            return null;
+        }
+    }
 }

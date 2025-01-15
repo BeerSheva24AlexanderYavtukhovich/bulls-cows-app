@@ -18,7 +18,6 @@ public class BullsCowsProtocol implements Protocol {
 
     public BullsCowsProtocol(BullsCowsService service) {
         this.service = service;
-
     }
 
     @Override
@@ -69,8 +68,12 @@ public class BullsCowsProtocol implements Protocol {
     }
 
     private Response createGame(String data) throws Exception {
-        Long id = service.createGame();
-        return getOkResponse("Game #" + id + " created.");
+        try {
+            Long id = service.createGame();
+            return getOkResponse("Game #" + id + " created.");
+        } catch (Exception e) {
+            return new Response(ResponseCode.WRONG_DATA, e.getMessage());
+        }
     }
 
     private Response startGame(String data) throws Exception {

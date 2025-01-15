@@ -1,7 +1,7 @@
 package telran.games;
 
 public final class Params {
-    public final static String HOST = System.getProperty("host", "54.91.101.91");
+    public final static String HOST = System.getProperty("host", "localhost");
     final static int PORT = 5011;
     final static String LINE = "-----------------";
     final static String TABLE_BORDER = "+-----+-------+-------+------------+------------+";
