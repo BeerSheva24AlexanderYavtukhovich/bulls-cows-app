@@ -237,6 +237,7 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
     @Override
     public List<Long> getGamesToJoin(String username) throws Exception {
         try {
+            // orig String jpqlString = "SELECT g.id FROM Game g LEFT JOIN g.gameGamers gg WITH gg.gamer.username = :username WHERE g.isFinished = false AND gg IS NULL";
             String jpqlString = "SELECT g.id FROM Game g LEFT JOIN g.gameGamers gg WITH gg.gamer.username = :username "
                     +
                     "WHERE gg IS NULL OR (gg.game.dateTime IS NULL AND gg.gamer.username != :username)";
@@ -251,7 +252,7 @@ public class BullsCowsRepositoryImpl implements BullsCowsRepository {
     @Override
     public List<Long> getGamesToPlay(String username) throws Exception {
         try {
-           // String jpqlString = "SELECT g.id FROM Game g JOIN g.gameGamers gg WHERE g.dateTime IS NOT NULL AND gg.gamer.username = :username AND g.isFinished = false";
+           // orig String jpqlString = "SELECT g.id FROM Game g JOIN g.gameGamers gg WHERE g.dateTime IS NOT NULL AND gg.gamer.username = :username AND g.isFinished = false";
            String  jpqlString ="SELECT game.id FROM GameGamer WHERE gamer.username = :username AND game.dateTime IS NOT NULL AND game.isFinished = false";
            TypedQuery<Long> query = em.createQuery(jpqlString, Long.class);
             query.setParameter("username", username);
